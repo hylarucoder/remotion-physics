@@ -40,9 +40,11 @@ export const createSimulation = (config: SimulationConfig): SimulationState => {
 
   // Create decorative circles
   const smallCircles = Array.from({ length: 8 }, (_, i) => {
-    const x = 100 + Math.random() * 800;
-    const y = Math.random() * config.height;
-    const radius = 10 + Math.random() * 20;
+    const angle = (i / 8) * Math.PI * 2;
+    const radius = 15;
+    const distance = 400;
+    const x = 960 + Math.cos(angle) * distance;
+    const y = 540 + Math.sin(angle) * distance;
     
     return Matter.Bodies.circle(x, y, radius, {
       isStatic: true,
@@ -55,22 +57,22 @@ export const createSimulation = (config: SimulationConfig): SimulationState => {
   Matter.World.add(engine.world, staticBodies);
 
   // Create dynamic balls
-  const balls = Array.from({ length: 15 }, (_, i) => {
-    const targetCircle = mainCircles[Math.floor(Math.random() * mainCircles.length)];
-    const offsetX = (Math.random() - 0.5) * 200;
-    const x = targetCircle.position.x + offsetX;
-    const radius = 15 + Math.random() * 15;
+  const balls = Array.from({ length: 30 }, (_, i) => {
+    // 在屏幕上方均匀分布球的位置
+    const x = 200 + (i % 10) * 160;  // 10列球,间隔160
+    const startY = -100 - Math.floor(i / 10) * 100;  // 每行相差100高度
     
-    const ball = Matter.Bodies.circle(x, -50 - i * 100, radius, {
-      restitution: 0.8,
-      friction: 0.05,
-      density: 0.001,
-      label: 'ball'
+    const ball = Matter.Bodies.circle(x, startY, 15, {
+      restitution: 0.3,  // 降低弹性，让球不要弹太高
+      friction: 0.01,    // 降低摩擦力
+      density: 0.01,     // 增加密度，让球下落更快
+      label: 'ball',
+      frictionAir: 0.001 // 降低空气阻力
     });
 
-    const velocityX = (Math.random() - 0.5) * 8;
-    const velocityY = 5 + Math.random() * 5;
-    Matter.Body.setVelocity(ball, { x: velocityX, y: velocityY });
+    // 给一个很小的初始水平速度,让运动更有趣
+    const velocityX = ((i % 3) - 1) * 0.5;  // -0.5, 0, or 0.5
+    Matter.Body.setVelocity(ball, { x: velocityX, y: 2 });  // 给一个初始向下的速度
     
     return ball;
   });
@@ -80,9 +82,17 @@ export const createSimulation = (config: SimulationConfig): SimulationState => {
   // Simulate and record frames
   const frames: SimulationFrame[] = [];
   const totalFrames = config.duration * config.fps;
+  
+  // Physics simulation parameters
+  const timeStep = 1 / config.fps;  // Time step in seconds
+  const subSteps = 4;  // Number of physics sub-steps per frame
+  const subTimeStep = timeStep / subSteps;  // Time step for each sub-step
 
   for (let i = 0; i < totalFrames; i++) {
-    Matter.Engine.update(engine, 1000 / config.fps);
+    // Perform multiple physics updates per frame for better accuracy
+    for (let j = 0; j < subSteps; j++) {
+      Matter.Engine.update(engine, subTimeStep);
+    }
 
     const bodies: PhysicsBody[] = [...staticBodies, ...balls].map(body => ({
       id: body.id,
